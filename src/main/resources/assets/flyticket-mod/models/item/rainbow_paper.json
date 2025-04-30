@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "flyticket-mod:item/rainbow_paper"
+  }
+}
