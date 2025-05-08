@@ -3,22 +3,23 @@ package net.insideseras.flyticketmod;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
+import net.insideseras.flyticketmod.data.FlyTicketSaveState;
 import net.insideseras.flyticketmod.item.RainbowPaperItem;
 import net.insideseras.flyticketmod.item.modItems;
 import net.insideseras.flyticketmod.particle.ModParticles;
 
+import net.minecraft.item.ItemStack;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.command.argument.EntityArgumentType;
-
-import com.mojang.brigadier.arguments.StringArgumentType;
-
-import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayNetworkHandler;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.world.ServerWorld;
 
 import static net.minecraft.server.command.CommandManager.*;
 
@@ -47,6 +48,7 @@ public class FlyTicketMod implements ModInitializer {
 					// Creative? → Timer löschen
 					if (player.isCreative()) {
 						RainbowPaperItem.flyTimers.remove(player.getUuid());
+						FlyTicketSaveState.get(player.getServerWorld()).removeTimer(player.getUuid());
 						continue;
 					}
 
@@ -57,6 +59,7 @@ public class FlyTicketMod implements ModInitializer {
 						player.getAbilities().flying = false;
 						player.sendAbilitiesUpdate();
 						RainbowPaperItem.flyTimers.remove(player.getUuid());
+						FlyTicketSaveState.get(player.getServerWorld()).removeTimer(player.getUuid());
 
 						player.sendMessage(Text.literal("❌ Dein Flug ist abgelaufen.").formatted(Formatting.RED), false);
 					} else if (currentTick % 20 == 0) {
@@ -65,7 +68,7 @@ public class FlyTicketMod implements ModInitializer {
 						int seconds = totalSeconds % 60;
 
 						String timeStr = String.format("%02d:%02d", minutes, seconds);
-						Text actionBar = Text.literal("✈ Flugzeit: ")
+						Text actionBar = Text.literal("⌛ Flugzeit: ")
 								.append(Text.literal(timeStr).formatted(Formatting.AQUA));
 
 						player.sendMessage(actionBar, true);
@@ -74,12 +77,25 @@ public class FlyTicketMod implements ModInitializer {
 			}
 		});
 
+		// Flugstatus beim Join wiederherstellen
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+			ServerPlayerEntity player = handler.player;
+			ServerWorld world = player.getServerWorld();
+
+			Long endTick = FlyTicketSaveState.get(world).getFlyTimers().get(player.getUuid());
+
+			if (endTick != null && endTick > world.getTime()) {
+				RainbowPaperItem.flyTimers.put(player.getUuid(), endTick);
+				player.getAbilities().allowFlying = true;
+				player.sendAbilitiesUpdate();
+			}
+		});
+
 		// Befehle registrieren
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			dispatcher.register(literal("flyticket")
-					.requires(source -> source.hasPermissionLevel(2)) // OP-Level 2
+					.requires(source -> source.hasPermissionLevel(2))
 
-					// /flyticket → Ticket für sich selbst
 					.executes(context -> {
 						ServerPlayerEntity player = context.getSource().getPlayer();
 						ItemStack ticket = new ItemStack(modItems.RAINBOW_PAPER);
@@ -88,7 +104,6 @@ public class FlyTicketMod implements ModInitializer {
 						return 1;
 					})
 
-					// /flyticket give <Spieler>
 					.then(literal("give")
 							.then(argument("target", EntityArgumentType.player())
 									.executes(ctx -> {
@@ -103,12 +118,12 @@ public class FlyTicketMod implements ModInitializer {
 							)
 					)
 
-					// /flyticket cancel
 					.then(literal("cancel")
 							.executes(ctx -> {
 								ServerPlayerEntity player = ctx.getSource().getPlayer();
 								if (RainbowPaperItem.flyTimers.containsKey(player.getUuid())) {
 									RainbowPaperItem.flyTimers.remove(player.getUuid());
+									FlyTicketSaveState.get(player.getServerWorld()).removeTimer(player.getUuid());
 									player.getAbilities().allowFlying = false;
 									player.getAbilities().flying = false;
 									player.sendAbilitiesUpdate();
