@@ -3,6 +3,7 @@ package net.insideseras.flyticketmod;
 import net.fabricmc.api.ModInitializer;
 
 import net.insideseras.flyticketmod.item.modItems;
+import net.insideseras.flyticketmod.particle.ModParticles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,5 +15,7 @@ public class FlyTicketMod implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		modItems.registerModItems();
+
+		ModParticles.registerParticles();
 	}
 }
