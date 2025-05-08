@@ -7,7 +7,7 @@ import net.minecraft.util.TypedActionResult;
 import net.minecraft.world.World;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
-import net.insideseras.flyticketmod.particle.ModParticles; // dein Partikel-Import
+import net.insideseras.flyticketmod.particle.ModParticles;
 
 public class RainbowPaperItem extends Item {
 
@@ -17,6 +17,8 @@ public class RainbowPaperItem extends Item {
 
     @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity player, Hand hand) {
+        ItemStack stack = player.getStackInHand(hand);
+
         if (!world.isClient) {
             ServerWorld serverWorld = (ServerWorld) world;
 
@@ -27,8 +29,13 @@ public class RainbowPaperItem extends Item {
                     0.9, 0.9, 0.9,
                     0.01
             );
+
+            // Verbrauche das Item (außer im Creative-Modus)
+            if (!player.isCreative()) {
+                stack.decrement(1);
+            }
         }
 
-        return TypedActionResult.success(player.getStackInHand(hand), world.isClient());
+        return TypedActionResult.success(stack, world.isClient());
     }
 }
