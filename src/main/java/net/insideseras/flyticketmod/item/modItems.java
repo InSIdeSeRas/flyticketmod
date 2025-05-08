@@ -7,10 +7,11 @@ import net.minecraft.item.ItemGroups;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
+import net.insideseras.flyticketmod.item.RainbowPaperItem;
 
 
 public class modItems {
-    public static final Item RAINBOW_PAPER = registerItem("rainbow_paper", new Item(new Item.Settings()));
+    public static final Item RAINBOW_PAPER = registerItem("rainbow_paper", new RainbowPaperItem(new Item.Settings()));
 
     private static Item registerItem(String name, Item item) {
         return Registry.register(Registries.ITEM, Identifier.of(FlyTicketMod.MOD_ID, name), item);

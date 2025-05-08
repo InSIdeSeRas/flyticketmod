@@ -5,21 +5,35 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.particle.SimpleParticleType;
 import org.jetbrains.annotations.Nullable;
 
-import java.security.Provider;
-
 public class FlyParticle extends SpriteBillboardParticle {
-    public FlyParticle(ClientWorld clientWorld, double x, double y, double z,
+
+    public FlyParticle(ClientWorld world, double x, double y, double z,
                        SpriteProvider spriteProvider, double xSpeed, double ySpeed, double zSpeed) {
-        super(clientWorld, x, y, z, xSpeed, ySpeed, zSpeed);
+        super(world, x, y, z, xSpeed, ySpeed, zSpeed);
 
-        this.velocityMultiplier = 0.0f;
+        // Bewegung aktivieren
+        this.velocityX = xSpeed;
+        this.velocityY = ySpeed;
+        this.velocityZ = zSpeed;
 
-        this.maxAge = 40;
+        this.velocityMultiplier = 0.9f; // damit es langsamer ausläuft
+
+        this.scale = 0.3f;
+        this.maxAge = 40 + world.random.nextInt(10);
         this.setSpriteForAge(spriteProvider);
 
         this.red = 1f;
         this.green = 1f;
         this.blue = 1f;
+        this.alpha = 1.0f;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        // Fade-out Effekt
+        this.alpha = 1.0f - ((float) this.age / this.maxAge);
     }
 
     @Override
@@ -27,7 +41,7 @@ public class FlyParticle extends SpriteBillboardParticle {
         return ParticleTextureSheet.PARTICLE_SHEET_TRANSLUCENT;
     }
 
-    public static class Factory implements ParticleFactory<SimpleParticleType>{
+    public static class Factory implements ParticleFactory<SimpleParticleType> {
         private final SpriteProvider spriteProvider;
 
         public Factory(SpriteProvider spriteProvider) {
@@ -35,8 +49,9 @@ public class FlyParticle extends SpriteBillboardParticle {
         }
 
         @Override
-        public @Nullable Particle createParticle(SimpleParticleType parameters, ClientWorld world, double x, double y, double z, double velocityX, double velocityY, double velocityZ) {
-            return new FlyParticle(world, x, y, z, this.spriteProvider, velocityX, velocityY, velocityZ);
+        public @Nullable Particle createParticle(SimpleParticleType type, ClientWorld world, double x, double y, double z,
+                                                 double velocityX, double velocityY, double velocityZ) {
+            return new FlyParticle(world, x, y, z, spriteProvider, velocityX, velocityY, velocityZ);
         }
     }
 }
