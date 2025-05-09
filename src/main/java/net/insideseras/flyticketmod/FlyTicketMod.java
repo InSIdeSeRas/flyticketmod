@@ -1,17 +1,18 @@
+
 package net.insideseras.flyticketmod;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-
 import net.insideseras.flyticketmod.data.FlyTicketSaveState;
 import net.insideseras.flyticketmod.item.RainbowPaperItem;
 import net.insideseras.flyticketmod.item.modItems;
 import net.insideseras.flyticketmod.particle.ModParticles;
-
 import net.minecraft.command.argument.EntityArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -20,14 +21,11 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.MathHelper;
-
 import static net.minecraft.server.command.CommandManager.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class FlyTicketMod implements ModInitializer {
-
 	public static final String MOD_ID = "flyticket-mod";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
@@ -55,9 +53,9 @@ public class FlyTicketMod implements ModInitializer {
 						player.getAbilities().allowFlying = false;
 						player.getAbilities().flying = false;
 						player.sendAbilitiesUpdate();
+						player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOW_FALLING, 250, 0));
 						RainbowPaperItem.flyTimers.remove(player.getUuid());
 						FlyTicketSaveState.get(player.getServerWorld()).removeTimer(player.getUuid());
-
 						player.sendMessage(Text.literal("❌ Deine Flugzeit ist abgelaufen.").formatted(Formatting.RED), false);
 					} else if (currentTick % 20 == 0) {
 						int totalSeconds = MathHelper.floor(remainingTicks / 20.0);
@@ -82,7 +80,6 @@ public class FlyTicketMod implements ModInitializer {
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			ServerPlayerEntity player = handler.player;
 			ServerWorld world = player.getServerWorld();
-
 			Long endTick = FlyTicketSaveState.get(world).getFlyTimers().get(player.getUuid());
 
 			if (endTick != null && endTick > world.getTime()) {
@@ -95,7 +92,6 @@ public class FlyTicketMod implements ModInitializer {
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			dispatcher.register(literal("flyticket")
 					.requires(source -> source.hasPermissionLevel(2))
-
 					.executes(context -> {
 						ServerPlayerEntity player = context.getSource().getPlayer();
 						ItemStack ticket = new ItemStack(modItems.RAINBOW_PAPER);
@@ -103,7 +99,6 @@ public class FlyTicketMod implements ModInitializer {
 						player.sendMessage(Text.literal("🎟 Du hast ein FlyTicket erhalten."), false);
 						return 1;
 					})
-
 					.then(literal("give")
 							.then(argument("target", EntityArgumentType.player())
 									.executes(ctx -> {
@@ -111,10 +106,7 @@ public class FlyTicketMod implements ModInitializer {
 										target.getInventory().insertStack(new ItemStack(modItems.RAINBOW_PAPER));
 										ctx.getSource().sendFeedback(() -> Text.literal("🎟 FlyTicket an " + target.getName().getString() + " gegeben."), false);
 										return 1;
-									})
-							)
-					)
-
+									})))
 					.then(literal("cancel")
 							.executes(ctx -> {
 								ServerPlayerEntity player = ctx.getSource().getPlayer();
@@ -130,9 +122,7 @@ public class FlyTicketMod implements ModInitializer {
 									player.sendMessage(Text.literal("❌ Du hast kein aktives FlyTicket."), false);
 									return 0;
 								}
-							})
-					)
-
+							}))
 					.then(literal("addtime")
 							.then(argument("target", EntityArgumentType.player())
 									.then(argument("seconds", IntegerArgumentType.integer(1))
@@ -141,11 +131,8 @@ public class FlyTicketMod implements ModInitializer {
 												ServerPlayerEntity source = ctx.getSource().getPlayer();
 												int sec = IntegerArgumentType.getInteger(ctx, "seconds");
 												return modifyTime(target, sec, source);
-											})
-									)
-							)
+											})))
 					)
-
 					.then(literal("removetime")
 							.then(argument("target", EntityArgumentType.player())
 									.then(argument("seconds", IntegerArgumentType.integer(1))
@@ -154,11 +141,8 @@ public class FlyTicketMod implements ModInitializer {
 												ServerPlayerEntity source = ctx.getSource().getPlayer();
 												int sec = IntegerArgumentType.getInteger(ctx, "seconds");
 												return modifyTime(target, -sec, source);
-											})
-									)
-							)
+											})))
 					)
-
 					.then(literal("settime")
 							.then(argument("target", EntityArgumentType.player())
 									.then(argument("seconds", IntegerArgumentType.integer(1))
@@ -166,21 +150,17 @@ public class FlyTicketMod implements ModInitializer {
 												ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "target");
 												ServerPlayerEntity source = ctx.getSource().getPlayer();
 												int sec = IntegerArgumentType.getInteger(ctx, "seconds");
-
 												long newEnd = target.getServerWorld().getTime() + sec * 20L;
 												RainbowPaperItem.flyTimers.put(target.getUuid(), newEnd);
 												FlyTicketSaveState.get(target.getServerWorld()).setTimer(target.getUuid(), newEnd);
 												target.getAbilities().allowFlying = true;
 												target.sendAbilitiesUpdate();
-
 												target.sendMessage(Text.literal("⌛ Deine Flugzeit wurde gesetzt: " + sec + " Sekunden.").formatted(Formatting.AQUA), false);
 												if (!target.equals(source)) {
 													source.sendMessage(Text.literal("✔ Flugzeit für " + target.getName().getString() + " auf " + sec + " Sekunden gesetzt.").formatted(Formatting.GREEN), false);
 												}
 												return 1;
-											})
-									)
-							)
+											})))
 					)
 			);
 		});
@@ -206,7 +186,6 @@ public class FlyTicketMod implements ModInitializer {
 			} else {
 				player.sendMessage(Text.literal("✔ Flugzeit " + message).formatted(color), false);
 			}
-
 			return 1;
 		} else {
 			source.sendMessage(Text.literal("❌ Kein aktives FlyTicket bei " + player.getName().getString()).formatted(Formatting.YELLOW), false);
