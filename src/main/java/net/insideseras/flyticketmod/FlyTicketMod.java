@@ -24,6 +24,7 @@ import net.minecraft.util.math.MathHelper;
 import static net.minecraft.server.command.CommandManager.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import me.lucko.fabric.api.permissions.v0.Permissions;
 
 public class FlyTicketMod implements ModInitializer {
 	public static final String MOD_ID = "flyticket-mod";
@@ -36,19 +37,15 @@ public class FlyTicketMod implements ModInitializer {
 
 		ServerTickEvents.START_SERVER_TICK.register(server -> {
 			long currentTick = server.getOverworld().getTime();
-
 			for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
 				Long endTick = RainbowPaperItem.flyTimers.get(player.getUuid());
-
 				if (endTick != null) {
 					if (player.isCreative()) {
 						RainbowPaperItem.flyTimers.remove(player.getUuid());
 						FlyTicketSaveState.get(player.getServerWorld()).removeTimer(player.getUuid());
 						continue;
 					}
-
 					long remainingTicks = endTick - currentTick;
-
 					if (remainingTicks <= 0) {
 						player.getAbilities().allowFlying = false;
 						player.getAbilities().flying = false;
@@ -61,15 +58,9 @@ public class FlyTicketMod implements ModInitializer {
 						int totalSeconds = MathHelper.floor(remainingTicks / 20.0);
 						int minutes = totalSeconds / 60;
 						int seconds = totalSeconds % 60;
-
 						if (totalSeconds <= 10) {
-							player.getServerWorld().playSoundFromEntity(
-									null, player,
-									SoundEvents.UI_BUTTON_CLICK.value(),
-									SoundCategory.PLAYERS, 0.7f, 1.2f
-							);
+							player.getServerWorld().playSoundFromEntity(null, player, SoundEvents.UI_BUTTON_CLICK.value(), SoundCategory.PLAYERS, 0.7f, 1.2f);
 						}
-
 						String timeStr = String.format("%02d:%02d", minutes, seconds);
 						player.sendMessage(Text.literal("⌛ Flugzeit: ").append(Text.literal(timeStr).formatted(Formatting.AQUA)), true);
 					}
@@ -81,7 +72,6 @@ public class FlyTicketMod implements ModInitializer {
 			ServerPlayerEntity player = handler.player;
 			ServerWorld world = player.getServerWorld();
 			Long endTick = FlyTicketSaveState.get(world).getFlyTimers().get(player.getUuid());
-
 			if (endTick != null && endTick > world.getTime()) {
 				RainbowPaperItem.flyTimers.put(player.getUuid(), endTick);
 				player.getAbilities().allowFlying = true;
@@ -91,7 +81,7 @@ public class FlyTicketMod implements ModInitializer {
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			dispatcher.register(literal("flyticket")
-					.requires(source -> source.hasPermissionLevel(2))
+					.requires(source -> Permissions.check(source, "flyticket.use") || source.hasPermissionLevel(2))
 					.executes(context -> {
 						ServerPlayerEntity player = context.getSource().getPlayer();
 						ItemStack ticket = new ItemStack(modItems.RAINBOW_PAPER);
@@ -100,14 +90,18 @@ public class FlyTicketMod implements ModInitializer {
 						return 1;
 					})
 					.then(literal("give")
+							.requires(source -> Permissions.check(source, "flyticket.give") || source.hasPermissionLevel(2))
 							.then(argument("target", EntityArgumentType.player())
 									.executes(ctx -> {
 										ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "target");
 										target.getInventory().insertStack(new ItemStack(modItems.RAINBOW_PAPER));
 										ctx.getSource().sendFeedback(() -> Text.literal("🎟 FlyTicket an " + target.getName().getString() + " gegeben."), false);
 										return 1;
-									})))
+									})
+							)
+					)
 					.then(literal("cancel")
+							.requires(source -> Permissions.check(source, "flyticket.cancel") || source.hasPermissionLevel(2))
 							.executes(ctx -> {
 								ServerPlayerEntity player = ctx.getSource().getPlayer();
 								if (RainbowPaperItem.flyTimers.containsKey(player.getUuid())) {
@@ -122,34 +116,54 @@ public class FlyTicketMod implements ModInitializer {
 									player.sendMessage(Text.literal("❌ Du hast kein aktives FlyTicket."), false);
 									return 0;
 								}
-							}))
+							})
+					)
 					.then(literal("addtime")
+							.requires(source -> Permissions.check(source, "flyticket.time.add") || source.hasPermissionLevel(2))
 							.then(argument("target", EntityArgumentType.player())
 									.then(argument("seconds", IntegerArgumentType.integer(1))
 											.executes(ctx -> {
 												ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "target");
 												ServerPlayerEntity source = ctx.getSource().getPlayer();
 												int sec = IntegerArgumentType.getInteger(ctx, "seconds");
+												if (!RainbowPaperItem.flyTimers.containsKey(target.getUuid())) {
+													source.sendMessage(Text.literal("❌ " + target.getName().getString() + " hat kein aktives FlyTicket.").formatted(Formatting.RED), false);
+													return 0;
+												}
 												return modifyTime(target, sec, source);
-											})))
+											})
+									)
+							)
 					)
 					.then(literal("removetime")
+							.requires(source -> Permissions.check(source, "flyticket.time.remove") || source.hasPermissionLevel(2))
 							.then(argument("target", EntityArgumentType.player())
 									.then(argument("seconds", IntegerArgumentType.integer(1))
 											.executes(ctx -> {
 												ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "target");
 												ServerPlayerEntity source = ctx.getSource().getPlayer();
 												int sec = IntegerArgumentType.getInteger(ctx, "seconds");
+												if (!RainbowPaperItem.flyTimers.containsKey(target.getUuid())) {
+													source.sendMessage(Text.literal("❌ " + target.getName().getString() + " hat kein aktives FlyTicket.").formatted(Formatting.RED), false);
+													return 0;
+												}
 												return modifyTime(target, -sec, source);
-											})))
+											})
+									)
+							)
 					)
 					.then(literal("settime")
+							.requires(source -> Permissions.check(source, "flyticket.time.set") || source.hasPermissionLevel(2))
 							.then(argument("target", EntityArgumentType.player())
 									.then(argument("seconds", IntegerArgumentType.integer(1))
 											.executes(ctx -> {
 												ServerPlayerEntity target = EntityArgumentType.getPlayer(ctx, "target");
 												ServerPlayerEntity source = ctx.getSource().getPlayer();
 												int sec = IntegerArgumentType.getInteger(ctx, "seconds");
+												if (!RainbowPaperItem.flyTimers.containsKey(target.getUuid())) {
+													source.sendMessage(Text.literal("❌ " + target.getName().getString() + " hat kein aktives FlyTicket.").formatted(Formatting.RED), false);
+													return 0;
+												}
 												long newEnd = target.getServerWorld().getTime() + sec * 20L;
 												RainbowPaperItem.flyTimers.put(target.getUuid(), newEnd);
 												FlyTicketSaveState.get(target.getServerWorld()).setTimer(target.getUuid(), newEnd);
@@ -160,7 +174,9 @@ public class FlyTicketMod implements ModInitializer {
 													source.sendMessage(Text.literal("✔ Flugzeit für " + target.getName().getString() + " auf " + sec + " Sekunden gesetzt.").formatted(Formatting.GREEN), false);
 												}
 												return 1;
-											})))
+											})
+									)
+							)
 					)
 			);
 		});
@@ -171,15 +187,12 @@ public class FlyTicketMod implements ModInitializer {
 	private int modifyTime(ServerPlayerEntity player, int seconds, ServerPlayerEntity source) {
 		long now = player.getServerWorld().getTime();
 		Long oldEnd = RainbowPaperItem.flyTimers.get(player.getUuid());
-
 		if (oldEnd != null) {
 			long newEnd = Math.max(now, oldEnd + seconds * 20L);
 			RainbowPaperItem.flyTimers.put(player.getUuid(), newEnd);
 			FlyTicketSaveState.get(player.getServerWorld()).setTimer(player.getUuid(), newEnd);
-
 			String message = (seconds > 0 ? "⏫ verlängert" : "⏬ verkürzt") + " um " + Math.abs(seconds) + " Sekunden.";
 			Formatting color = seconds > 0 ? Formatting.GREEN : Formatting.RED;
-
 			if (!player.equals(source)) {
 				player.sendMessage(Text.literal("⌛ Deine Flugzeit wurde von " + source.getName().getString() + " " + message).formatted(color), false);
 				source.sendMessage(Text.literal("✔ Flugzeit von " + player.getName().getString() + " " + message).formatted(color), false);
